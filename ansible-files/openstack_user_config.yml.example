@@ -1,0 +1,80 @@
+---
+cidr_networks:
+  management: 10.0.0.0/24
+  public: 192.168.100.0/24
+
+used_ips:
+  - 10.0.0.1
+  - "10.0.0.10,10.0.0.20"
+  - "192.168.100.10,192.168.100.20"
+
+global_overrides:
+  internal_lb_vip_address: 10.0.0.100
+  external_lb_vip_address: 192.168.100.100
+  management_bridge: br-mgmt
+  provider_networks:
+    - network:
+        group_binds:
+          - all_containers
+          - hosts
+        type: "raw"
+        container_bridge: "br-mgmt"
+        container_interface: "eth1"
+        container_type: "veth"
+        ip_from_q: "management"
+        is_management_address: true
+    - network:
+        group_binds:
+          - nova_compute
+          - cinder_volume
+        type: "raw"
+        container_bridge: "br-storage"
+        container_interface: "eth2"
+        container_type: "veth"
+        container_mtu: "9000"
+        ip_from_q: "management"
+
+shared-infra_hosts:
+  controller01:
+    ip: 10.0.0.11
+
+repo-infra_hosts:
+  controller01:
+    ip: 10.0.0.11
+
+os-infra_hosts:
+  controller01:
+    ip: 10.0.0.11
+
+identity_hosts:
+  controller01:
+    ip: 10.0.0.11
+
+network_hosts:
+  network01:
+    ip: 10.0.0.12
+
+compute_hosts:
+  compute01:
+    ip: 10.0.0.13
+
+storage-infra_hosts:
+  storage01:
+    ip: 10.0.0.14
+
+storage_hosts:
+  storage01:
+    ip: 10.0.0.14
+    container_vars:
+      cinder_storage_availability_zone: cinderAZ_1
+      cinder_default_availability_zone: cinderAZ_1
+      cinder_backends:
+        lvm:
+          volume_backend_name: LVM_iSCSI
+          volume_driver: cinder.volume.drivers.lvm.LVMVolumeDriver
+          volume_group: cinder-volumes
+        limit_container_types: cinder_volume
+
+load_balancer_hosts:
+  controller01:
+    ip: 10.0.0.11

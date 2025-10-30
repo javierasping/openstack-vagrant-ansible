@@ -1,0 +1,91 @@
+---
+## Debug
+debug: false
+
+## Instalación desde fuente
+install_method: source
+
+## Glance
+glance_default_store: file
+
+## Cinder LVM backend
+cinder_backends:
+  limit_container_types: cinder_volume
+  lvm:
+    volume_backend_name: LVM
+    volume_driver: cinder.volume.drivers.lvm.LVMVolumeDriver
+    volume_group: cinder-volumes
+    iscsi_protocol: iscsi
+    iscsi_helper: tgtadm
+    thin_provisioning: true
+
+## Redes y VIPs
+internal_lb_vip_address: 10.0.0.10
+external_lb_vip_address: 192.168.100.10
+management_bridge: br-mgmt
+
+## Hosts compartidos (Galera, RabbitMQ, Memcached)
+shared-infra_hosts:
+  controller01:
+    ip: 10.0.0.11
+
+## Hosts repositorio
+repo-infra_hosts:
+  controller01:
+    ip: 10.0.0.11
+
+## Hosts OpenStack infra (Glance, Nova API, Heat, Horizon)
+os-infra_hosts:
+  controller01:
+    ip: 10.0.0.11
+
+## Hosts Keystone
+identity_hosts:
+  controller01:
+    ip: 10.0.0.11
+
+## Hosts Neutron
+network_hosts:
+  network01:
+    ip: 10.0.0.12
+
+## Hosts Compute
+compute_hosts:
+  compute01:
+    ip: 10.0.0.13
+
+## Hosts Storage
+storage-infra_hosts:
+  storage01:
+    ip: 10.0.0.14
+
+storage_hosts:
+  storage01:
+    ip: 10.0.0.14
+    container_vars:
+      cinder_storage_availability_zone: cinderAZ_1
+      cinder_default_availability_zone: cinderAZ_1
+      cinder_backends:
+        limit_container_types: cinder_volume
+        lvm:
+          volume_backend_name: LVM
+          volume_driver: cinder.volume.drivers.lvm.LVMVolumeDriver
+          volume_group: cinder-volumes
+          iscsi_protocol: iscsi
+          iscsi_helper: tgtadm
+          thin_provisioning: true
+
+## HAProxy (opcional, virtual)
+load_balancer_hosts:
+  lb1:
+    ip: 10.0.0.10
+
+## SSH timeout extra (opcional)
+ssh_delay: 5
+
+## Usuario y clave SSH para Ansible
+ansible_user: vagrant
+ansible_ssh_private_key_file: /home/javiercruces/openstack-vagrant-ansible/keys/id_rsa
+ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+ansible_become: true
+ansible_become_method: sudo
