@@ -1,0 +1,26 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    eth0:
+      dhcp4: false
+    eth1: {}
+    eth2: {}
+    eth3: {}
+    eth4: {}
+  bridges:
+    br-mgmt:
+      interfaces: [eth1]
+      addresses: [172.16.0.12/16]
+    br-public:
+      interfaces: [eth2]
+      addresses: [192.168.200.12/24]
+      gateway4: 192.168.200.1
+      nameservers:
+        addresses: [8.8.8.8,8.8.4.4]
+    br-vxlan:
+      interfaces: [eth3]
+      addresses: [172.19.0.12/16]
+    br-vlan:
+      interfaces: [eth4]
+      addresses: [172.18.0.12/16]

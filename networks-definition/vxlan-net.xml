@@ -1,0 +1,5 @@
+<network>
+  <name>vxlan-net</name>
+  <bridge name="br-vxlan" stp="on" delay="0"/>
+  <ip address="172.19.0.1" netmask="255.255.0.0"/>
+</network>

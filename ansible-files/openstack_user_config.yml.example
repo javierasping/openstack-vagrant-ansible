@@ -1,16 +1,19 @@
 ---
 cidr_networks:
-  management: 10.0.0.0/24
-  public: 192.168.100.0/24
+  management: 172.16.0.0/16
+  public: 192.168.200.0/16
+  storage: 172.20.0.0/16
+  vxlan: 172.19.0.0/16
+  vlan: 172.18.0.0/16
 
 used_ips:
-  - 10.0.0.1
-  - "10.0.0.10,10.0.0.20"
-  - "192.168.100.10,192.168.100.20"
+  - 172.16.0.1
+  - "172.16.0.10,172.16.0.20"
+  - "192.168.200.10,192.168.200.20"
 
 global_overrides:
-  internal_lb_vip_address: 10.0.0.100
-  external_lb_vip_address: 192.168.100.100
+  internal_lb_vip_address: 172.16.0.10
+  external_lb_vip_address: 192.168.200.10
   management_bridge: br-mgmt
   provider_networks:
     - network:
@@ -32,49 +35,65 @@ global_overrides:
         container_interface: "eth2"
         container_type: "veth"
         container_mtu: "9000"
-        ip_from_q: "management"
+        ip_from_q: "storage"
 
 shared-infra_hosts:
   controller01:
-    ip: 10.0.0.11
+    ip: 172.16.0.11
+    public_ip: 192.168.200.11
 
 repo-infra_hosts:
   controller01:
-    ip: 10.0.0.11
+    ip: 172.16.0.11
+    public_ip: 192.168.200.11
 
 os-infra_hosts:
   controller01:
-    ip: 10.0.0.11
+    ip: 172.16.0.11
+    public_ip: 192.168.200.11
 
 identity_hosts:
   controller01:
-    ip: 10.0.0.11
+    ip: 172.16.0.11
+    public_ip: 192.168.200.11
 
 network_hosts:
   network01:
-    ip: 10.0.0.12
+    ip: 172.16.0.12
+    public_ip: 192.168.200.12
+    vxlan_ip: 172.19.0.12
+    vlan_ip: 172.18.0.12
 
 compute_hosts:
   compute01:
-    ip: 10.0.0.13
+    ip: 172.16.0.13
+    public_ip: 192.168.200.13
+    storage_ip: 172.20.0.13
+    vxlan_ip: 172.19.0.13
+    vlan_ip: 172.18.0.13
 
 storage-infra_hosts:
   storage01:
-    ip: 10.0.0.14
+    ip: 172.16.0.14
+    public_ip: 192.168.200.14
+    storage_ip: 172.20.0.14
 
 storage_hosts:
   storage01:
-    ip: 10.0.0.14
+    ip: 172.16.0.14
+    public_ip: 192.168.200.14
+    storage_ip: 172.20.0.14
     container_vars:
       cinder_storage_availability_zone: cinderAZ_1
       cinder_default_availability_zone: cinderAZ_1
       cinder_backends:
+        limit_container_types: cinder_volume
         lvm:
           volume_backend_name: LVM_iSCSI
           volume_driver: cinder.volume.drivers.lvm.LVMVolumeDriver
           volume_group: cinder-volumes
-        limit_container_types: cinder_volume
 
 load_balancer_hosts:
   controller01:
-    ip: 10.0.0.11
+    ip: 172.16.0.11
+    public_ip: 192.168.200.11

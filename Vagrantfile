@@ -2,60 +2,81 @@ Vagrant.configure("2") do |config|
   IMAGE = "bento/ubuntu-24.04"
   SSH_KEY_PATH = "keys/id_rsa"
 
+  Dir.glob("networks-definition/*.xml").each do |xml_file|
+    network_name = File.basename(xml_file, ".xml")
+    puts "==> Comprobando red #{network_name}..."
+    unless system("sudo virsh net-info #{network_name} > /dev/null 2>&1")
+      puts "==> Creando red libvirt #{network_name} desde #{xml_file}..."
+      system("sudo virsh net-define #{xml_file}")
+      system("sudo virsh net-start #{network_name}")
+    else
+      puts "==> Red #{network_name} ya existe, saltando creación."
+    end
+  end
+
   config.ssh.insert_key = false
   config.vm.box_check_update = false
 
   nodes = [
-    { name: "controller01", ip_mgmt: "10.0.0.11", ip_pub: "192.168.100.11", cpu: 4,  mem: 8192 },
-    { name: "network01",    ip_mgmt: "10.0.0.12", ip_pub: "192.168.100.12", cpu: 4,  mem: 6144 },
-    { name: "compute01",    ip_mgmt: "10.0.0.13", ip_pub: "192.168.100.13", cpu: 8,  mem: 16384 },
-    { name: "storage01",    ip_mgmt: "10.0.0.14", ip_pub: "192.168.100.14", cpu: 4,  mem: 8192, extra_disk: true }
+    { name: "controller01", role: "controller", mgmt_ip: "172.16.0.11", public_ip: "192.168.200.11", storage_ip: "172.20.0.11", vxlan_ip: "172.19.0.11", cpu: 4, mem: 8192 },
+    { name: "network01", role: "network", mgmt_ip: "172.16.0.12", public_ip: "192.168.200.12", vxlan_ip: "172.19.0.12", vlan_ip: "172.18.0.12", cpu: 4, mem: 6144 },
+    { name: "compute01", role: "compute", mgmt_ip: "172.16.0.13", public_ip: "192.168.200.13", storage_ip: "172.20.0.13", vxlan_ip: "172.19.0.13", vlan_ip: "172.18.0.13", cpu: 8, mem: 16384 },
+    { name: "storage01", role: "storage", mgmt_ip: "172.16.0.14", public_ip: "192.168.200.14", storage_ip: "172.20.0.14", cpu: 4, mem: 8192, extra_disk: true }
   ]
 
-  # Desactivar red NAT por defecto de libvirt
   config.vm.provider :libvirt do |lv|
-    # lv.default_network = nil
     lv.nic_model_type = "virtio"
   end
 
   nodes.each do |node|
-    config.vm.define node[:name] do |node_cfg|
-      node_cfg.vm.box = IMAGE
-      node_cfg.vm.hostname = "#{node[:name]}.local"
+    config.vm.define node[:name] do |vm|
+      vm.vm.box = IMAGE
+      vm.vm.hostname = "#{node[:name]}.local"
 
-      node_cfg.vm.provider :libvirt do |lv|
+      vm.vm.provider :libvirt do |lv|
         lv.cpus = node[:cpu]
         lv.memory = node[:mem]
         lv.nested = true
-        # Añadir disco extra solo para storage01
-        if node[:extra_disk]
-          lv.storage :file, size: "500G", type: "qcow2", bus: "virtio"
-        end
+        lv.storage :file, size: "500G", type: "qcow2", bus: "virtio" if node[:extra_disk]
       end
 
-      node_cfg.vm.network :private_network, ip: node[:ip_mgmt],
-        libvirt__network_name: "mgmt-net", libvirt__dhcp_enabled: false
+      vm.vm.network :private_network, ip: node[:public_ip], libvirt__network_name: "public-network", libvirt__dhcp_enabled: false
+      vm.vm.network :private_network, ip: node[:mgmt_ip],   libvirt__network_name: "mgmt-net",      libvirt__dhcp_enabled: false
+      vm.vm.network :private_network, ip: node[:storage_ip], libvirt__network_name: "storage-net",  libvirt__dhcp_enabled: false if node[:storage_ip]
+      vm.vm.network :private_network, ip: node[:vxlan_ip],  libvirt__network_name: "vxlan-net",     libvirt__dhcp_enabled: false if node[:vxlan_ip]
+      vm.vm.network :private_network, ip: node[:vlan_ip],   libvirt__network_name: "vlan-net",      libvirt__dhcp_enabled: false if node[:vlan_ip]
 
-      node_cfg.vm.network :private_network, ip: node[:ip_pub],
-        libvirt__network_name: "public-net", libvirt__dhcp_enabled: false
+      vm.vm.provision "shell", inline: <<-SHELL
+        set -e
+        echo "==> Configurando nodo #{node[:name]}..."
 
-      # Provisioning: instalar paquetes y añadir claves SSH a root y vagrant
-      node_cfg.vm.provision "shell", inline: <<-SHELL
         apt update -y
-        apt install -y python3 python3-pip git vim net-tools openssh-server lvm2
+        apt install -y netplan.io python3 python3-pip git vim net-tools openssh-server lvm2
 
-        # Añadir clave al root
+        # Borrar netplans viejos de Vagrant
+        rm -f /etc/netplan/*
+
+        # Copiar netplan propio
+        cp /vagrant/netplan-definitions/#{node[:name]}.yaml /etc/netplan/01-bridges.yaml
+        chown root:root /etc/netplan/01-bridges.yaml
+        chmod 600 /etc/netplan/01-bridges.yaml
+
+        # Aplicar netplan con sudo
+        sudo netplan generate
+        sudo netplan apply
+
+        # Añadir clave SSH al root
         mkdir -p /root/.ssh
         cat /vagrant/keys/id_rsa.pub >> /root/.ssh/authorized_keys
         chmod 600 /root/.ssh/authorized_keys
 
-        # Añadir clave al usuario vagrant
+        # Añadir clave SSH al usuario vagrant
         mkdir -p /home/vagrant/.ssh
         cat /vagrant/keys/id_rsa.pub >> /home/vagrant/.ssh/authorized_keys
         chown -R vagrant:vagrant /home/vagrant/.ssh
         chmod 600 /home/vagrant/.ssh/authorized_keys
 
-        # Configuración SSH para evitar host key checking
+        # Evitar host key checking
         echo "Host *\n  StrictHostKeyChecking no\n" >> /root/.ssh/config
         echo "Host *\n  StrictHostKeyChecking no\n" >> /home/vagrant/.ssh/config
       SHELL

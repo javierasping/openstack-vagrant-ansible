@@ -1,0 +1,5 @@
+<network>
+  <name>storage-net</name>
+  <bridge name="br-storage" stp="on" delay="0"/>
+  <ip address="172.20.0.1" netmask="255.255.0.0"/>
+</network>
