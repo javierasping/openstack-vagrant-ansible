@@ -12,7 +12,7 @@ used_ips:
   - "192.168.200.10,192.168.200.20"
 
 global_overrides:
-  internal_lb_vip_address: 172.16.0.10
+  internal_lb_vip_address: 172.16.0.11
   external_lb_vip_address: 192.168.200.10
   management_bridge: br-mgmt
   provider_networks:
@@ -94,6 +94,11 @@ storage_hosts:
           volume_group: cinder-volumes
 
 load_balancer_hosts:
+  controller01:
+    ip: 172.16.0.11
+    public_ip: 192.168.200.11
+
+galera_hosts:
   controller01:
     ip: 172.16.0.11
     public_ip: 192.168.200.11
