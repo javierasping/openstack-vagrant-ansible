@@ -1,0 +1,40 @@
+Vagrant.configure("2") do |config|
+  IMAGE = "bento/ubuntu-24.04"
+  DOMAIN = "openstack.javiercd.es"
+  config.ssh.insert_key = true
+  config.vm.box_check_update = false
+
+  # Definición de nodos
+  nodes = [
+    { name: "controller01", role: "controller", mgmt_ip: "10.0.0.2", cpu: 2, mem: 6144 },
+    { name: "compute01", role: "compute", mgmt_ip: "10.0.0.3", cpu: 2, mem: 4096 },
+    { name: "storage01", role: "storage", mgmt_ip: "10.0.0.4", cpu: 1, mem: 4096, extra_disk: true }
+  ]
+
+  # Configuración global del proveedor Libvirt
+  config.vm.provider :libvirt do |lv|
+    lv.nic_model_type = "virtio"
+  end
+
+  nodes.each do |node|
+    fqdn = "#{node[:name]}.#{DOMAIN}"
+
+    config.vm.define node[:name] do |vm|
+      vm.vm.box = IMAGE
+      vm.vm.hostname = fqdn
+
+      # Recursos configurables por nodo
+      vm.vm.provider :libvirt do |lv|
+        lv.cpus  = node[:cpu]
+        lv.memory = node[:mem]
+        lv.nested = true
+        lv.storage :file, size: "20G", type: "qcow2", bus: "virtio" if node[:extra_disk]
+      end
+
+      # Red de gestión con IP estática
+      vm.vm.network :private_network,
+                    ip: node[:mgmt_ip],
+                    libvirt__network_name: "mgmt-net"
+    end
+  end
+end
