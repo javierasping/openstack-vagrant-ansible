@@ -1,0 +1,100 @@
+Vagrant.configure("2") do |config|
+  IMAGE = "bento/ubuntu-24.04"
+  DOMAIN = "openstack.javiercd.es"
+
+  config.ssh.insert_key = true
+  config.vm.box_check_update = false
+
+  # Asegura que las redes libvirt del laboratorio existen y estan activas
+  config.trigger.before :up do |trigger|
+    trigger.info = "Verificando redes libvirt (mgmt-net/provider)"
+    trigger.run = {
+      inline: "bash ./ensure_libvirt_networks.sh"
+    }
+  end
+
+  # 🔹 Definición de nodos (según PDF)
+  nodes = [
+    { name: "controller", role: "controller", mgmt_ip: "10.0.0.11", cpu: 2, mem: 6144 },
+    { name: "compute1",  role: "compute",    mgmt_ip: "10.0.0.31", cpu: 1, mem: 2048 },
+    { name: "compute2",  role: "compute",    mgmt_ip: "10.0.0.32", cpu: 1, mem: 2048 },
+    { name: "block1",    role: "storage",    mgmt_ip: "10.0.0.41", cpu: 1, mem: 1024, extra_disk: true },
+    { name: "deployment",role: "deploy",     mgmt_ip: "10.0.0.100", cpu: 1, mem: 2048 }
+  ]
+
+  # 🔹 Configuración global libvirt
+  config.vm.provider :libvirt do |lv|
+    lv.nic_model_type = "virtio"
+  end
+
+  nodes.each do |node|
+    fqdn = "#{node[:name]}.#{DOMAIN}"
+
+    config.vm.define node[:name] do |vm|
+      vm.vm.box = IMAGE
+      vm.vm.hostname = fqdn
+
+      # 🔹 Recursos
+      vm.vm.provider :libvirt do |lv|
+        lv.cpus   = node[:cpu]
+        lv.memory = node[:mem]
+        lv.nested = true
+
+        # Disco extra para Cinder (block1)
+        if node[:extra_disk]
+          lv.storage :file,
+                     size: "30G",
+                     type: "qcow2",
+                     bus: "virtio"
+        end
+      end
+
+      # Red 1: Management (IP fija)
+      vm.vm.network :private_network,
+                    ip: node[:mgmt_ip],
+            libvirt__network_name: "mgmt-net"
+
+      # Red 2: Provider (NAT)
+      # (solo algunos nodos realmente la necesitan,
+      # pero la dejamos homogénea como en el PDF)
+      vm.vm.network :private_network,
+                    libvirt__network_name: "provider"
+
+      vm.vm.provision "shell", privileged: true, inline: <<-SHELL
+        set -e
+
+        # 1) GRUB: habilitar nombres clasicos de interfaces
+        if grep -q '^GRUB_CMDLINE_LINUX=' /etc/default/grub; then
+          sed -i 's/^GRUB_CMDLINE_LINUX=.*/GRUB_CMDLINE_LINUX="net.ifnames=0 biosdevname=0"/' /etc/default/grub
+        else
+          echo 'GRUB_CMDLINE_LINUX="net.ifnames=0 biosdevname=0"' >> /etc/default/grub
+        fi
+        update-grub
+
+        # 2) Sudo sin password para el usuario primario (UID 1000)
+        PRIMARY_USER="$(awk -F: '$3==1000 {print $1; exit}' /etc/passwd)"
+        if [ -z "$PRIMARY_USER" ]; then
+          PRIMARY_USER="vagrant"
+        fi
+        SUDOERS_FILE="/etc/sudoers.d/99-${PRIMARY_USER}-nopasswd"
+        echo "${PRIMARY_USER} ALL=(ALL) NOPASSWD:ALL" > "$SUDOERS_FILE"
+        chmod 0440 "$SUDOERS_FILE"
+        visudo -cf "$SUDOERS_FILE"
+
+        # 3) Hosts estaticos del laboratorio
+        sed -i '/# BEGIN KOLLA HOSTS/,/# END KOLLA HOSTS/d' /etc/hosts
+        cat >> /etc/hosts <<'HOSTS_EOF'
+# BEGIN KOLLA HOSTS
+127.0.0.1 localhost
+10.0.0.11 controller
+10.0.0.31 compute1
+10.0.0.32 compute2
+10.0.0.41 block1
+10.0.0.100 deployment
+# END KOLLA HOSTS
+HOSTS_EOF
+      SHELL
+
+    end
+  end
+end
